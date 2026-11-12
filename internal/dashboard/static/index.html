@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>docsync</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo">⇄</span> docsync <span id="doc-name" class="muted"></span></div>
+  <div id="state-pill" class="pill">loading…</div>
+</header>
+
+<main>
+  <section id="banner" class="banner hidden"></section>
+
+  <section class="cards">
+    <div class="card"><div class="label">Last cycle</div><div class="value" id="c-last-cycle">–</div><div class="sub" id="c-cycle-time"></div></div>
+    <div class="card"><div class="label">Last change seen</div><div class="value" id="c-last-change">–</div><div class="sub" id="c-ct-version"></div></div>
+    <div class="card"><div class="label">Generation</div><div class="value" id="c-generation">–</div><div class="sub" id="c-epoch"></div></div>
+    <div class="card"><div class="label">Pending roots</div><div class="value" id="c-pending">–</div><div class="sub">waiting to be rebuilt</div></div>
+    <div class="card"><div class="label">Documents emitted</div><div class="value" id="c-upserts">–</div><div class="sub" id="c-deletes"></div></div>
+    <div class="card"><div class="label">Root errors</div><div class="value" id="c-root-errors">–</div><div class="sub" id="c-cycles"></div></div>
+    <div class="card"><div class="label">Sweeper corrections</div><div class="value" id="c-sweep">–</div><div class="sub">missed changes found and fixed</div></div>
+  </section>
+
+  <section class="grid">
+    <div class="panel">
+      <h2>Sinks</h2>
+      <table><thead><tr><th>Sink</th><th>Generation</th><th>Behind</th><th>Base</th></tr></thead><tbody id="sinks"></tbody></table>
+    </div>
+    <div class="panel">
+      <h2>Source tables</h2>
+      <table><thead><tr><th>Table</th><th>Changes</th><th>Last change</th><th>Roots (last / max)</th></tr></thead><tbody id="tables"></tbody></table>
+      <p class="hint">Roots = documents one cycle's changes to the table affected. A high maximum means a shared lookup with wide fan-out.</p>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="panel">
+      <h2>Inspect a document</h2>
+      <form id="inspect-form" class="row">
+        <input id="inspect-id" placeholder="root id, e.g. 1000123" autocomplete="off" required>
+        <button type="submit">Inspect</button>
+      </form>
+      <div id="inspect-result" class="hidden">
+        <p id="inspect-summary"></p>
+        <div class="compare">
+          <div><h3>Last emitted</h3><pre id="inspect-stored"></pre></div>
+          <div><h3>Assembled now</h3><pre id="inspect-live"></pre></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Actions</h2>
+      <div class="actions">
+        <button data-action="pause">Pause</button>
+        <button data-action="resume">Resume</button>
+        <button data-action="compact" title="Write a fresh base snapshot to every sink">Write base snapshot</button>
+        <button data-action="resnapshot" data-confirm="Re-check every document against the database? Only changed documents are emitted." class="warn">Resnapshot</button>
+        <button data-action="new-epoch" data-confirm="Start a new epoch? Consumers will reload from a new base snapshot." class="danger">Start new epoch</button>
+      </div>
+      <form id="rebuild-form" class="row">
+        <input id="rebuild-ids" placeholder="root ids to rebuild, comma separated" autocomplete="off">
+        <button type="submit">Rebuild</button>
+        <button type="button" id="rebuild-all" class="warn">Rebuild all</button>
+      </form>
+      <p id="action-result" class="hint"></p>
+      <h2>Last error</h2>
+      <pre id="last-error" class="error-box">none</pre>
+    </div>
+  </section>
+</main>
+
+<footer class="muted">
+  <a href="api/status">status JSON</a> · <a href="api/config">config</a> · <a href="metrics">metrics</a> · <a href="healthz">health</a>
+</footer>
+<script src="app.js"></script>
+</body>
+</html>

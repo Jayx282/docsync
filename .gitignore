@@ -1,0 +1,21 @@
+# Local secrets and test credentials
+.env
+.env.*
+
+# Runtime data
+/state/
+/out/
+/bin/
+/dist/
+*.tmp
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+
+# studio UI dependencies (the built UI in internal/studio/ui/dist is committed)
+/web/studio/node_modules/
+# studio working directories (designs, deployed pipelines, output): /studio and /studio-<name>
+/studio/
+/studio-*/

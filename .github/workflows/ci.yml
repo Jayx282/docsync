@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Build and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l cmd internal examples test)" || (gofmt -l cmd internal examples test; exit 1)
+      - run: go vet ./...
+      - run: go vet -tags integration ./test/...
+      - run: go test ./...
+      - name: Cross-compile
+        run: |
+          for p in linux/amd64 linux/arm64 darwin/arm64 windows/amd64; do
+            GOOS=${p%/*} GOARCH=${p#*/} go build -o /dev/null ./cmd/docsync
+          done
+
+  ui:
+    name: Studio UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/studio/package-lock.json
+      - run: npm ci
+        working-directory: web/studio
+      - run: npm run build
+        working-directory: web/studio
+      - name: The committed UI build matches the source
+        run: |
+          if ! git diff --quiet -- internal/studio/ui/dist || [ -n "$(git ls-files --others --exclude-standard internal/studio/ui/dist)" ]; then
+            echo "::error::internal/studio/ui/dist is out of date. Run 'make ui' and commit the result."
+            git status --short internal/studio/ui/dist
+            exit 1
+          fi
+
+  integration:
+    name: Integration tests (SQL Server 2022)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Start SQL Server
+        run: |
+          pw="Ci-$(openssl rand -hex 12)-A1"   # throwaway container password
+          echo "::add-mask::$pw"
+          docker run -d --name mssql -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=$pw" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+          echo "DOCSYNC_TEST_DSN=sqlserver://sa:${pw}@127.0.0.1:1433?database=master&encrypt=disable" >> "$GITHUB_ENV"
+          for i in $(seq 1 90); do
+            if docker exec mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$pw" -C -Q "SELECT 1" >/dev/null 2>&1; then exit 0; fi
+            sleep 2
+          done
+          docker logs mssql
+          exit 1
+      - name: Integration tests
+        run: go test -tags integration ./test/integration/ -v -timeout 30m
+        env:
+          DOCSYNC_TEST_FAULTS: "1"
+
+  windows-service:
+    name: Windows service
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test ./cmd/... ./internal/logfile/
+      - run: go build -o docsync.exe ./cmd/docsync
+      - name: Install, start, check, stop and remove the service
+        shell: pwsh
+        run: |
+          $dir = 'C:\docsync-ci\stone'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          ./docsync.exe init --dir $dir
+          # There is no SQL Server on this machine: the service must stay up and keep retrying.
+          ./docsync.exe service install --config "$dir\docsync.yaml" --dsn 'sqlserver://localhost:1?database=none&encrypt=disable'
+          if ($LASTEXITCODE -ne 0) { throw 'install failed' }
+          ./docsync.exe service start --name docsync-stone
+          if ($LASTEXITCODE -ne 0) { throw 'start failed' }
+          Start-Sleep -Seconds 20
+          $svc = Get-Service docsync-stone
+          if ($svc.Status -ne 'Running') { throw "the service is $($svc.Status), not Running" }
+          $log = "$dir\logs\docsync.log"
+          Get-Content $log -Tail 20
+          if (-not (Select-String -Path $log -Pattern 'starting it again' -Quiet)) { throw 'the service did not log its retries' }
+          Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = 'docsync-stone' } -MaxEvents 5 |
+            Format-Table -AutoSize TimeCreated, LevelDisplayName, Message
+          ./docsync.exe service status --name docsync-stone
+          ./docsync.exe service stop --name docsync-stone
+          (Get-Service docsync-stone).WaitForStatus('Stopped', '00:00:45')
+          ./docsync.exe service uninstall --name docsync-stone
+          if (Get-Service docsync-stone -ErrorAction SilentlyContinue) { throw 'the service is still installed' }

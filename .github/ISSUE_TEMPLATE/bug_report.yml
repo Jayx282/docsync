@@ -1,0 +1,64 @@
+name: Bug report
+description: Something doesn't work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Before posting, remove connection strings, passwords and any data you can't share.
+        Security problems go in a [private report](https://github.com/Jayx282/docsync/security/advisories/new) instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Steps to reproduce it, ideally on the demo data (`make demo`) or a small schema.
+      placeholder: |
+        1.
+        2.
+        3.
+  - type: input
+    id: version
+    attributes:
+      label: docsync version
+      description: The output of `docsync version`.
+      placeholder: docsync v0.1.0 (go1.26.0, linux/amd64)
+    validations:
+      required: true
+  - type: input
+    id: sqlserver
+    attributes:
+      label: SQL Server version and edition
+      description: The first line of `SELECT @@VERSION`.
+      placeholder: Microsoft SQL Server 2022 (RTM-CU16) Developer Edition
+  - type: dropdown
+    id: area
+    attributes:
+      label: Part of docsync
+      options:
+        - Sync engine (docsync run)
+        - Studio
+        - Output files or the consumer protocol
+        - Dashboard or metrics
+        - CLI tools (doctor, introspect, fanout, ...)
+        - Windows service
+        - Docs
+        - Something else
+  - type: textarea
+    id: config
+    attributes:
+      label: Config
+      description: The relevant part of docsync.yaml or of the Studio design, without secrets.
+      render: yaml
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant log lines, or the error shown in the dashboard or in Studio.
+      render: text
